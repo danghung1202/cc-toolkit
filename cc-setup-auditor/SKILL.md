@@ -138,6 +138,35 @@ different invocation paths require different optimization:
 | **Fork-isolated** | Skill has `context: fork` — runs in isolated subagent | Focus on what the summary returns to main context |
 | **Mixed** | Skill used by multiple patterns above | Must satisfy requirements of ALL its invocation patterns |
 
+### Step 1.6: Check skill execution enforcement
+
+For each agent that preloads skills (`skills:` field), check whether the agent
+definition contains an explicit **Skill Execution Rule** section that tells the
+agent to prioritize pre-loaded skill instructions over general training knowledge.
+
+Without this rule, agents will intermittently ignore pre-loaded skill steps and
+use their own knowledge to complete tasks — especially when the task is something
+the model "already knows" (e.g., generating a kubeconfig, writing YAML).
+
+Record per agent: `has_execution_rule: true/false`
+
+This feeds into rule B6.1 during Phase 2 evaluation.
+
+### Step 1.7: Classify skill content as horizontal vs vertical
+
+For each skill, classify its content:
+
+- **Horizontal** — conventions, patterns, naming rules, architecture context
+  that the agent needs regardless of which specific task it's running.
+  Example: "all namespaces use prefix nit-", "always use kustomize patches, never patchesStrategicMerge"
+- **Vertical** — step-by-step workflow with specific scripts, commands, and output paths.
+  Example: "Run `generate-team-kubeconfig.sh`, save to `k8s-god/kube-configs/`"
+
+Record per skill: `content_type: horizontal | vertical | mixed`
+
+Mixed skills are candidates for splitting — horizontal content should move to
+CLAUDE.md, vertical steps stay in the skill. This feeds into rules A3.12 and E1.7.
+
 ---
 
 ## Phase 2: Contextual Evaluation

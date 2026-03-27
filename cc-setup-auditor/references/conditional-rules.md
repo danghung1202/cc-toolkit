@@ -51,6 +51,27 @@ These are mechanical checks that always apply regardless of context.
 | A3.9 | Explains WHY not just WHAT | Rules exist that Claude might not understand the reasoning for | Rules are self-evident |
 | A3.10 | Uses `` !`command` `` for dynamic context | Skill needs live system state at invocation time (e.g., current cluster status, git branch) | Skill is purely reference material that doesn't depend on runtime state |
 | A3.11 | Includes input/output examples | Skill has a specific output format requirement | Skill is open-ended guidance |
+| A3.12 | Skill content correctly classified as horizontal vs vertical | Always — apply to every skill | N/A — always apply |
+| A3.13 | Workflow skills use imperative script/command references | Skill role is `workflow` AND defines specific scripts or commands | Skill role is `knowledge` or `diagnostic` |
+
+**A3.12 — Horizontal vs Vertical classification:**
+
+Every skill's content falls into two categories:
+- **Horizontal** = conventions, patterns, naming rules, architecture context — knowledge the agent needs on *every task*. This belongs in CLAUDE.md or the agent prompt, not in skills. When packed in a skill, it competes with the agent's training knowledge and often loses (the agent "already knows" the answer and skips reading the skill).
+- **Vertical** = step-by-step workflows with specific scripts, paths, and commands. This belongs in skills because it defines the *approved procedure* for this workspace.
+
+If a skill mixes both, recommend splitting: extract horizontal content to CLAUDE.md, keep vertical steps in the skill.
+
+Recommendation depends on invocation pattern:
+- **Agent-preloaded skill with horizontal content** → move conventions to CLAUDE.md or agent prompt; keep only vertical workflow in skill
+- **Auto-invoked/standalone skill with horizontal content** → move to CLAUDE.md if needed on every task; flag that the skill may be undertriggered since the agent may use training knowledge instead
+- **Skill that is purely horizontal** → candidate for migration to CLAUDE.md entirely
+
+Source: Vercel research — AGENTS.md (persistent context) achieved 100% pass rate vs skills' 53% for horizontal knowledge. Skills went unused in 56% of cases even when available. See: https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals
+
+**A3.13 — Imperative script references:**
+
+Workflow skills that define specific scripts or commands should reference them imperatively (e.g., "Run `generate-team-kubeconfig.sh`") rather than describing the goal generically (e.g., "generate a kubeconfig"). Generic descriptions are easily overridden by the agent's training knowledge — the agent pattern-matches "generate kubeconfig" to its training data and hand-rolls the solution instead of using the defined script.
 
 ### A4. Isolation and context (conditional)
 
@@ -131,6 +152,36 @@ the agent may exist for routing purposes even if the work is simple.
 | B5.2 | Layer 2 file paths in agent prompt | Agent references project files that aren't always in the current directory | Agent only works with files in its current directory |
 | B5.3 | Agent degrades gracefully without Layer 3 | Agent is global and may run outside the project folder | Agent is project-scoped — Layer 3 always loads |
 
+### B6. Skill execution enforcement (conditional)
+
+Agents with pre-loaded skills often ignore the skill's defined steps and use general training knowledge instead. This is the "pre-training overrides retrieval" problem — the agent "already knows" how to do the task and skips the approved workflow sitting in its context.
+
+Source: Vercel found skills went unused 56% of the time. Our own testing confirmed that even when skill content is injected into agent context via `skills:` frontmatter, agents still default to training knowledge. See: https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals
+
+| ID | Check | Precondition — apply ONLY when | Skip when |
+|----|-------|-------------------------------|-----------|
+| B6.1 | Agent has explicit Skill Execution Rule section | Agent preloads skills via `skills:` field | Agent has no preloaded skills |
+| B6.2 | Execution rule states skill instructions override general knowledge | B6.1 applies AND skills define specific scripts, paths, or commands | Skills are pure knowledge/reference with no prescribed steps |
+| B6.3 | Agent specifies fallback behavior for unmatched tasks | Agent has a skill routing table | Agent handles a single domain with a single skill |
+
+**What a good Skill Execution Rule looks like:**
+
+```markdown
+## Skill Execution Rule
+
+When a task matches a skill listed in the routing table above, your pre-loaded
+skill content defines the approved workflow for this workspace. Follow its steps,
+commands, and scripts exactly — your general knowledge about how to accomplish
+the same task is secondary.
+
+If no skill matches the task, handle it using your own knowledge but report back
+to the leader that no skill covered this task.
+```
+
+**Key phrase:** "your general knowledge is secondary" — this directly addresses the pre-training vs retrieval priority that causes agents to ignore pre-loaded skills.
+
+**B6.1 failure impact:** HIGH — without this rule, agents with pre-loaded workflow skills will intermittently ignore defined scripts, output paths, and conventions. The failure is silent (the task appears to succeed) and inconsistent (depends on whether the agent's training knowledge covers the task).
+
 ---
 
 ## C. Command Rules
@@ -203,6 +254,15 @@ the agent may exist for routing purposes even if the work is simple.
 | E1.4 | Uses `<important if="...">` tags | CLAUDE.md is over 100 lines AND has domain-specific rules that get ignored | CLAUDE.md is short — all content gets attention |
 | E1.5 | Doesn't duplicate agent Layer 1 content | Agents exist with baked-in essential facts | No agents — CLAUDE.md is the only context source |
 | E1.6 | Doesn't duplicate skill content | Skills exist that cover the same knowledge | No skills — CLAUDE.md is the only knowledge source |
+| E1.7 | Horizontal knowledge lives in CLAUDE.md, not buried in skills | Skills exist that contain conventions, patterns, or architecture context the agent needs on every task | All skills are pure vertical workflows (step-by-step procedures) |
+
+**E1.7 — Why this matters:**
+
+Horizontal knowledge (naming conventions, architecture context, repo structure, deployment patterns) that lives inside skills is effectively "gated" — the agent must choose to consult the skill, or the skill must be pre-loaded and the agent must prioritize it over training knowledge. Both paths have high failure rates (56% unused for external skills, intermittent ignoring for pre-loaded skills).
+
+Moving horizontal knowledge to CLAUDE.md makes it persistent context on every turn with zero decision points. Vercel's research showed this achieves 100% pass rate vs 53% for the same knowledge packaged as skills.
+
+**How to check:** For each skill, ask: "Would an agent need this information even when NOT executing this specific workflow?" If yes, it's horizontal and belongs in CLAUDE.md.
 
 ### E2. Scope (conditional)
 
