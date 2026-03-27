@@ -49,20 +49,20 @@ find "$ROOT" "$GLOBAL" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/nul
   dirname=$(basename "$dir")
   lines=$(wc -l < "$f")
   name=$(grep -m1 "^name:" "$f" | sed 's/name:[[:space:]]*//')
-  
+
   # Check name match
   match="MATCH"
   [ "$dirname" != "$name" ] && match="MISMATCH ($dirname != $name)"
-  
+
   # Frontmatter flags
   user_inv=$(grep -c "user-invocable:" "$f" 2>/dev/null || echo 0)
   disable_model=$(grep -c "disable-model-invocation:" "$f" 2>/dev/null || echo 0)
   ctx_fork=$(grep -c "context:" "$f" 2>/dev/null || echo 0)
-  
+
   # Description length
   desc_line=$(grep -m1 "^description:" "$f" 2>/dev/null)
   desc_len=${#desc_line}
-  
+
   # Subdirectories
   subdirs=""
   [ -d "$dir/scripts" ] && subdirs="${subdirs}scripts "
@@ -70,11 +70,11 @@ find "$ROOT" "$GLOBAL" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/nul
   [ -d "$dir/resources" ] && subdirs="${subdirs}resources "
   [ -d "$dir/assets" ] && subdirs="${subdirs}assets "
   [ -z "$subdirs" ] && subdirs="(none)"
-  
+
   echo "  $f"
   echo "    name: $name | dir: $dirname | $match"
   echo "    lines: $lines | desc_chars: $desc_len | subdirs: $subdirs"
-  
+
   flags=""
   [ "$user_inv" -gt 0 ] && flags="${flags}user-invocable "
   [ "$disable_model" -gt 0 ] && flags="${flags}disable-model-invocation "
@@ -96,7 +96,7 @@ for d in "$ROOT/.claude/agents" "$GLOBAL/agents"; do
     perm=$(grep -m1 "^permissionMode:" "$f" 2>/dev/null | sed 's/permissionMode:[[:space:]]*//')
     memory=$(grep -m1 "^memory:" "$f" 2>/dev/null | sed 's/memory:[[:space:]]*//')
     max_turns=$(grep -m1 "^maxTurns:" "$f" 2>/dev/null | sed 's/maxTurns:[[:space:]]*//')
-    
+
     # Extract preloaded skills
     preloaded_skills=""
     in_skills=0
@@ -114,7 +114,7 @@ for d in "$ROOT/.claude/agents" "$GLOBAL/agents"; do
         fi
       fi
     done < "$f"
-    
+
     echo "  $f"
     echo "    name: ${name:-(unnamed)} | model: ${model:-inherit} | lines: $lines"
     [ -n "$tools" ] && echo "    tools: $tools"
@@ -134,12 +134,12 @@ for d in "$ROOT/.claude/commands" "$GLOBAL/commands"; do
     [ -f "$f" ] || continue
     lines=$(wc -l < "$f")
     desc=$(grep -m1 "^description:" "$f" 2>/dev/null | sed 's/description:[[:space:]]*//')
-    
+
     # Check if command references an agent
     spawns_agent=""
     agent_ref=$(grep -i -m1 "agent\|subagent\|spawn\|Task tool" "$f" 2>/dev/null | head -1)
     [ -n "$agent_ref" ] && spawns_agent="(may route to agent)"
-    
+
     echo "  $f ($lines lines) $spawns_agent"
     [ -n "$desc" ] && echo "    description: ${desc:0:80}..."
   done
@@ -153,7 +153,7 @@ for loc in "$ROOT/.claude/settings.json" "$GLOBAL/settings.json"; do
   if [ -f "$loc" ]; then
     settings_file="$loc"
     echo "  Settings: $loc"
-    
+
     for event in PreToolUse PostToolUse UserPromptSubmit Stop Notification SessionStart; do
       count=$(grep -c "\"$event\"" "$loc" 2>/dev/null || echo 0)
       [ "$count" -gt 0 ] && echo "    $event: $count hook(s) configured"
@@ -221,9 +221,9 @@ echo "  Skill invocation patterns:"
 find "$ROOT" "$GLOBAL" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | sort | while read -r f; do
   name=$(grep -m1 "^name:" "$f" | sed 's/name:[[:space:]]*//')
   [ -z "$name" ] && continue
-  
+
   patterns=""
-  
+
   # Check if any agent preloads this skill
   for d in "$ROOT/.claude/agents" "$GLOBAL/agents"; do
     [ -d "$d" ] || continue
@@ -235,7 +235,7 @@ find "$ROOT" "$GLOBAL" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/nul
       fi
     done
   done
-  
+
   # Check frontmatter flags
   if grep -q "user-invocable: false" "$f" 2>/dev/null; then
     patterns="${patterns}model-only, "
@@ -244,11 +244,11 @@ find "$ROOT" "$GLOBAL" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/nul
   else
     patterns="${patterns}auto-invocable, "
   fi
-  
+
   if grep -q "context:.*fork" "$f" 2>/dev/null; then
     patterns="${patterns}fork-isolated, "
   fi
-  
+
   echo "    $name: [${patterns%, }]"
 done
 echo ""
